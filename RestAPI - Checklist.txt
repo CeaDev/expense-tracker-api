@@ -1,0 +1,118 @@
+`
+Step-by-Step Plan to Build a REST API in Go
+
+1. Define the API Contract
+- Identify resources (users, orders, products) (DONE)
+- Define endpoints
+- Define request/response format (JSON)
+- Define HTTP methods
+- Define status codes
+- Optionally create OpenAPI/Swagger specification
+
+4. Create the HTTP Server
+- configure port
+- initialize router
+- register routes
+- start server
+
+5. Implement Routing
+GET /users --
+GET /users/{id} --
+POST /users
+PUT /users/{id}
+DELETE /users/{id}
+
+7. Request Parsing & Validation
+- decode JSON
+- validate fields
+- return validation errors
+
+8. Business Logic Layer
+Handler → Service → Repository
+
+10. Middleware
+Examples:
+- logging
+- authentication
+- request ID
+- rate limiting
+- CORS
+
+11. Error Handling
+Example response:
+{
+ "error": "user_not_found",
+ "message": "User does not exist"
+}
+
+12. Authentication
+Options:
+- JWT
+- API Keys
+- OAuth2
+
+13. Logging
+Libraries:
+- Zap
+- Logrus
+- Go standard log
+
+14. Configuration
+Use environment variables or config libraries.
+
+15. Testing
+Unit Tests:
+go test ./...
+
+Integration tests for endpoints.
+
+16. API Documentation
+Tools:
+- Swagger
+- Swaggo
+
+17. Database Migrations
+Tools:
+- golang-migrate
+- goose
+
+18. Containerization
+Use Docker with a Dockerfile.
+
+19. Deployment
+Cloud platforms:
+- AWS
+- Google Cloud
+- DigitalOcean
+- Render
+
+20. Monitoring
+Tools:
+- Prometheus
+- Grafana
+
+Typical request flow:
+
+Client
+ ↓
+Router
+ ↓
+Middleware
+ ↓
+Handler
+ ↓
+Service
+ ↓
+Repository
+ ↓
+Database
+
+Minimum API Requirements:
+1. HTTP server
+2. Router
+3. Handlers
+4. Models
+5. Business logic
+6. Database access
+7. JSON responses
+`
