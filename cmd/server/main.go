@@ -19,12 +19,17 @@ func main() {
 		fmt.Println("Error Connecting to Database!")
 	}
 
+	// Gets the list of users
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
+		switch r.Method {
+		case "GET":
+			Handlers.GetUsers(w, Db)
+		case "POST":
+			r.Header.Set("Content-Type", "application/json")
+			Handlers.PostUser(w, r, Db)
+		default:
+			http.Error(w, "Endpoint could not be accessed!", http.StatusMethodNotAllowed)
 		}
-		Handlers.GetUsers(w, Db)
 	})
 
 	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {

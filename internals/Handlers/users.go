@@ -3,8 +3,11 @@ package Handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/CeaDev/expense-tracker/internals/models"
 )
@@ -73,4 +76,25 @@ func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+}
+
+func PostUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	var user models.User
+	// Get JSON data from request
+	jsonData, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "JSON data could not be read", http.StatusInternalServerError)
+	}
+	// Unmarshal the json data into a user struct
+	err = json.Unmarshal(jsonData, &user)
+	if err != nil {
+		http.Error(w, "JSON format is not correct", http.StatusInternalServerError)
+	}
+	// Add user to DB
+	user.CreatedAt = time.Now().Format("Jan-02-2006 03:04:05 PM")
+	query := fmt.Sprintf("INSERT INTO users (name, email, createdAt, password) VALUES ('%s', '%s', '%s', '%s');", user.Name, user.Email, user.CreatedAt, user.Password)
+	_, err = db.Exec(query)
+	if err != nil {
+		http.Error(w, "User could not be added to DB", http.StatusInternalServerError)
+	}
 }
