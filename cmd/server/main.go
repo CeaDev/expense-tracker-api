@@ -33,13 +33,17 @@ func main() {
 	})
 
 	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
 		result := strings.Split(r.URL.Path, "/")
 		id := result[len(result)-1]
-		Handlers.GetUserById(w, id, Db)
+
+		switch r.Method {
+		case "GET":
+			Handlers.GetUserById(w, id, Db)
+		case "DELETE":
+			Handlers.DeleteUser(w, id, Db)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	})
 
 	// Start Server

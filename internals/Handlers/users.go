@@ -23,7 +23,7 @@ func GetUsers(w http.ResponseWriter, db *sql.DB) {
 	users := make([]models.User, 0)
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Password); err != nil {
 			http.Error(w, "Scan error", http.StatusInternalServerError)
 			return
 		}
@@ -59,7 +59,7 @@ func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
 	defer rows.Close()
 	var user models.User
 	if rows.Next() {
-		err = rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.CreatedAt)
+		err = rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Password)
 		if err != nil {
 			http.Error(w, "Error scanning rows from database", http.StatusInternalServerError)
 			return
@@ -68,7 +68,6 @@ func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
 		http.Error(w, "User does not exist!", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
 	err = encoder.Encode(user)
 	if err != nil {
@@ -84,11 +83,13 @@ func PostUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	jsonData, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "JSON data could not be read", http.StatusInternalServerError)
+		return
 	}
 	// Unmarshal the json data into a user struct
 	err = json.Unmarshal(jsonData, &user)
 	if err != nil {
 		http.Error(w, "JSON format is not correct", http.StatusInternalServerError)
+		return
 	}
 	// Add user to DB
 	user.CreatedAt = time.Now().Format("Jan-02-2006 03:04:05 PM")
@@ -96,5 +97,25 @@ func PostUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	_, err = db.Exec(query)
 	if err != nil {
 		http.Error(w, "User could not be added to DB", http.StatusInternalServerError)
+	}
+}
+
+func DeleteUser(w http.ResponseWriter, id string, db *sql.DB) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, err := strconv.Atoi(id)
+	if err != nil {
+		http.Error(w, "ID is not a number", http.StatusInternalServerError)
+		return
+	}
+	query := "DELETE from users WHERE user_id = " + id
+	result, err := db.Exec(query)
+	numRows, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "There was an ERROR while deleting the user!", http.StatusInternalServerError)
+		return
+	}
+	if numRows == 0 {
+		http.Error(w, "There is no user that has that ID!", http.StatusInternalServerError)
+		return
 	}
 }

@@ -18,9 +18,9 @@ Step-by-Step Plan to Build a REST API in Go
 5. Implement Routing
 GET /users --
 GET /users/{id} --
-POST /users
+POST /users -- 
 PUT /users/{id}
-DELETE /users/{id}
+DELETE /users/{id} --
 
 7. Request Parsing & Validation
 - decode JSON
