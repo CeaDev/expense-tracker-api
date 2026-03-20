@@ -41,6 +41,8 @@ func main() {
 			Handlers.GetUserById(w, id, Db)
 		case "DELETE":
 			Handlers.DeleteUser(w, id, Db)
+		case "PUT":
+			Handlers.UpdateUser(w, r, Db, id)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}

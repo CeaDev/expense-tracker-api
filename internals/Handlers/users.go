@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/CeaDev/expense-tracker/internals/models"
@@ -116,6 +117,60 @@ func DeleteUser(w http.ResponseWriter, id string, db *sql.DB) {
 	}
 	if numRows == 0 {
 		http.Error(w, "There is no user that has that ID!", http.StatusInternalServerError)
+		return
+	}
+}
+
+func UpdateUser(w http.ResponseWriter, r *http.Request, db *sql.DB, id string) {
+	_, err := strconv.Atoi(id)
+	if err != nil {
+		http.Error(w, "The ID is not an Integer!", http.StatusInternalServerError)
+		return
+	}
+	query := "SELECT * from users where user_id = " + id
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, "Could not Query the Database", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	if rows.Next() {
+		// unmarshal json and change the fields
+		var user models.User
+		jsonData, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error parsing response body!", http.StatusInternalServerError)
+			return
+		}
+		err = json.Unmarshal(jsonData, &user)
+		if err != nil {
+			http.Error(w, "Error unmarshalling JSON data into struct", http.StatusInternalServerError)
+			return
+		}
+		update_query := "UPDATE users SET "
+		if user.Name != "" {
+			set_query := "name = '" + user.Name + "',"
+			update_query += set_query
+		}
+		if user.Email != "" {
+			set_query := "email = '" + user.Email + "',"
+			update_query += set_query
+		}
+		if user.Password != "" {
+			set_query := "password = '" + user.Password + "'"
+			update_query += set_query
+		}
+		// check for trailing comma
+		update_query = strings.TrimSuffix(update_query, ",")
+		update_query += " WHERE user_id = " + id
+		fmt.Println(update_query)
+		_, err = db.Exec(update_query)
+		if err != nil {
+			http.Error(w, "ERROR trying to execute UPDATE Query on Database!", http.StatusInternalServerError)
+		}
+
+	} else {
+		http.Error(w, "The User with that ID does not exist!!", http.StatusInternalServerError)
 		return
 	}
 }
