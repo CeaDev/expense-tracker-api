@@ -19,6 +19,15 @@ func main() {
 		fmt.Println("Error Connecting to Database!")
 	}
 
+	// Handle user login
+	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			Handlers.PostLogin(w, r, Db)
+		} else {
+			http.Error(w, "Endpoint could not be accessed!", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// Gets the list of users
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {

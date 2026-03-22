@@ -11,7 +11,70 @@ import (
 	"time"
 
 	"github.com/CeaDev/expense-tracker/internals/models"
+	"github.com/golang-jwt/jwt"
+	"github.com/joho/godotenv"
 )
+
+// Struct for unmarshaling login credentials
+type Credentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	var jsonCredentials Credentials
+	// Read in request data
+	jsonData, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Request Body could not be read", http.StatusInternalServerError)
+		return
+	}
+	err = json.Unmarshal(jsonData, &jsonCredentials)
+	// Validate the name-password by checking database
+	query := "SELECT user_id FROM users WHERE (email = '" + jsonCredentials.Email + "' AND password = '" + jsonCredentials.Password + "');"
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, "Error while Querying Database for user name", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	if rows.Next() {
+		// If row exists, get the ID so we can add it to the claims of the JSON token
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			http.Error(w, "Error while getting ID from found user", http.StatusInternalServerError)
+		}
+		// Generate JWT Token if user is found
+		// Load secret key from .ENV file
+		err := godotenv.Load("../../variables.env")
+		if err != nil {
+			http.Error(w, "Error loading .env file", http.StatusInternalServerError)
+			return
+		}
+		envVariables, err := godotenv.Read("../../variables.env")
+		if err != nil {
+			http.Error(w, "Error reading variables from .env file!", http.StatusInternalServerError)
+			return
+		}
+		token := jwt.New(jwt.SigningMethodHS256)
+		claims := token.Claims.(jwt.MapClaims)
+		claims["exp"] = time.Now().Add(10 * time.Minute)
+		claims["authorized"] = true
+		claims["id"] = id
+		secret_key := envVariables["jwt_key"]
+		signed_String, err := token.SignedString([]byte(secret_key))
+		fmt.Println(signed_String)
+		if err != nil {
+			fmt.Println(err.Error())
+			http.Error(w, "Error while setting Token signed string", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		http.Error(w, "Email/Password combination is not correct", http.StatusInternalServerError)
+
+	}
+}
 
 // GET: gets a list of all users in DB
 func GetUsers(w http.ResponseWriter, db *sql.DB) {
@@ -24,7 +87,7 @@ func GetUsers(w http.ResponseWriter, db *sql.DB) {
 	users := make([]models.User, 0)
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Password); err != nil {
+		if err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Password, &user.Role); err != nil {
 			http.Error(w, "Scan error", http.StatusInternalServerError)
 			return
 		}
@@ -60,7 +123,7 @@ func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
 	defer rows.Close()
 	var user models.User
 	if rows.Next() {
-		err = rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Password)
+		err = rows.Scan(&user.Id, &user.Name, &user.Email, &user.CreatedAt, &user.Password, &user.Role)
 		if err != nil {
 			http.Error(w, "Error scanning rows from database", http.StatusInternalServerError)
 			return
@@ -94,7 +157,7 @@ func PostUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 	// Add user to DB
 	user.CreatedAt = time.Now().Format("Jan-02-2006 03:04:05 PM")
-	query := fmt.Sprintf("INSERT INTO users (name, email, createdAt, password) VALUES ('%s', '%s', '%s', '%s');", user.Name, user.Email, user.CreatedAt, user.Password)
+	query := fmt.Sprintf("INSERT INTO users (name, email, createdAt, password, role) VALUES ('%s', '%s', '%s', '%s', 'user');", user.Name, user.Email, user.CreatedAt, user.Password)
 	_, err = db.Exec(query)
 	if err != nil {
 		http.Error(w, "User could not be added to DB", http.StatusInternalServerError)

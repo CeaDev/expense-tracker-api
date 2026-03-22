@@ -16,16 +16,11 @@ Step-by-Step Plan to Build a REST API in Go
 - start server
 
 5. Implement Routing
-GET /users --
-GET /users/{id} --
-POST /users -- 
-PUT /users/{id}
-DELETE /users/{id} --
-
-7. Request Parsing & Validation
-- decode JSON
-- validate fields
-- return validation errors
+GET /expenses 
+GET /expenses/{id} 
+POST /expenses 
+PUT /expenses/{id} 
+DELETE /expenses/{id} 
 
 8. Business Logic Layer
 Handler → Service → Repository
@@ -33,7 +28,7 @@ Handler → Service → Repository
 10. Middleware
 Examples:
 - logging
-- authentication
+- authentication (JWT)
 - request ID
 - rate limiting
 - CORS
@@ -44,12 +39,6 @@ Example response:
  "error": "user_not_found",
  "message": "User does not exist"
 }
-
-12. Authentication
-Options:
-- JWT
-- API Keys
-- OAuth2
 
 13. Logging
 Libraries:
