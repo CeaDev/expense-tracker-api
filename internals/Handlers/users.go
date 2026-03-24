@@ -21,7 +21,19 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
+// Struct for marshaling JSON token
+type TokenResponse struct {
+	TokenString string `json:"tokenString"`
+	TokenType   string `json:"tokenType"`
+}
+
+// Function for verifying the token sent in a request header
+func VerifyJWTToken() {
+	//
+}
+
 func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	w.Header().Set("Content-Type", "application/json")
 	var jsonCredentials Credentials
 	// Read in request data
 	jsonData, err := io.ReadAll(r.Body)
@@ -31,7 +43,7 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 	err = json.Unmarshal(jsonData, &jsonCredentials)
 	// Validate the name-password by checking database
-	query := "SELECT user_id FROM users WHERE (email = '" + jsonCredentials.Email + "' AND password = '" + jsonCredentials.Password + "');"
+	query := "SELECT user_id, role FROM users WHERE (email = '" + jsonCredentials.Email + "' AND password = '" + jsonCredentials.Password + "');"
 	rows, err := db.Query(query)
 	if err != nil {
 		http.Error(w, "Error while Querying Database for user name", http.StatusInternalServerError)
@@ -39,9 +51,10 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 	defer rows.Close()
 	if rows.Next() {
-		// If row exists, get the ID so we can add it to the claims of the JSON token
+		// If row exists, get the ID/role of the user so we can add it to the claims of the JSON token
 		var id int64
-		err = rows.Scan(&id)
+		var role string
+		err = rows.Scan(&id, &role)
 		if err != nil {
 			http.Error(w, "Error while getting ID from found user", http.StatusInternalServerError)
 		}
@@ -57,17 +70,28 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			http.Error(w, "Error reading variables from .env file!", http.StatusInternalServerError)
 			return
 		}
+		// Header
 		token := jwt.New(jwt.SigningMethodHS256)
+		// Payload
 		claims := token.Claims.(jwt.MapClaims)
 		claims["exp"] = time.Now().Add(10 * time.Minute)
 		claims["authorized"] = true
 		claims["id"] = id
+		claims["role"] = role
 		secret_key := envVariables["jwt_key"]
+		// Signature
 		signed_String, err := token.SignedString([]byte(secret_key))
-		fmt.Println(signed_String)
 		if err != nil {
-			fmt.Println(err.Error())
 			http.Error(w, "Error while setting Token signed string", http.StatusInternalServerError)
+			return
+		}
+		response := TokenResponse{
+			TokenString: signed_String,
+			TokenType:   "Bearer",
+		}
+		err = json.NewEncoder(w).Encode(response)
+		if err != nil {
+			http.Error(w, "Error while processing token", http.StatusInternalServerError)
 			return
 		}
 	} else {
