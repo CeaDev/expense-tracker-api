@@ -28,8 +28,24 @@ type TokenResponse struct {
 }
 
 // Function for verifying the token sent in a request header
-func VerifyJWTToken() {
-	//
+// It will return the Token claims
+func VerifyJWTToken(tokenstring string) jwt.MapClaims {
+	err := godotenv.Load("../../variables.env")
+	if err != nil {
+		return nil
+	}
+	env_variables, err := godotenv.Read("../../variables.env")
+	if err != nil {
+		return nil
+	}
+	secret_key := env_variables["jwt_key"]
+	token, err := jwt.Parse(tokenstring, func(token *jwt.Token) (interface{}, error) {
+		return []byte(secret_key), nil
+	})
+	if err != nil {
+		return nil
+	}
+	return token.Claims.(jwt.MapClaims)
 }
 
 func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
@@ -74,7 +90,9 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		token := jwt.New(jwt.SigningMethodHS256)
 		// Payload
 		claims := token.Claims.(jwt.MapClaims)
-		claims["exp"] = time.Now().Add(10 * time.Minute)
+		current_time := time.Now()
+		claims["iss"] = current_time.Unix()
+		claims["exp"] = current_time.Add(1 * time.Minute).Unix()
 		claims["authorized"] = true
 		claims["id"] = id
 		claims["role"] = role
@@ -101,7 +119,25 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 }
 
 // GET: gets a list of all users in DB
-func GetUsers(w http.ResponseWriter, db *sql.DB) {
+// NOTE: Only and ADMIN can access the data for ALL/Other users
+func GetUsers(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	// Get Authorization value from header
+	tokenString := r.Header.Get("Authorization")
+	// Get Claims from JWT token, we need this to verify user role later
+	validatedToken := VerifyJWTToken(tokenString)
+	if validatedToken != nil {
+		// If token is valid, check that the user is an ADMIN
+		if validatedToken["role"] != "admin" {
+			http.Error(w, "UNAUTHORIZED! Token was validated, but user was not an Admin!", http.StatusUnauthorized)
+			return
+		}
+	} else {
+		// If the token was nil (not validated)
+		http.Error(w, "UNAUTHORIZED! Token could not be validated!", http.StatusUnauthorized)
+		return
+	}
+
+	// If the above passes (token valid, user is admin) get all user data
 	rows, err := db.Query("SELECT * from users")
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -131,7 +167,7 @@ func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
 	// Content type will be plain text in case of error. If we successfully execute the function, this will be
 	// set to application/json at the end of the function
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	// Verify numbwer sent is an int
+	// Verify number sent is an int
 	_, err := strconv.Atoi(id)
 	if err != nil {
 		http.Error(w, "The submitted ID is not an integer!", http.StatusInternalServerError)

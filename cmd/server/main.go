@@ -32,7 +32,7 @@ func main() {
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			Handlers.GetUsers(w, Db)
+			Handlers.GetUsers(w, r, Db)
 		case "POST":
 			r.Header.Set("Content-Type", "application/json")
 			Handlers.PostUser(w, r, Db)
