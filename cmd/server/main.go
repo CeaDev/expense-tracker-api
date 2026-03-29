@@ -34,7 +34,6 @@ func main() {
 		case "GET":
 			Handlers.GetUsers(w, r, Db)
 		case "POST":
-			r.Header.Set("Content-Type", "application/json")
 			Handlers.PostUser(w, r, Db)
 		default:
 			http.Error(w, "Endpoint could not be accessed!", http.StatusMethodNotAllowed)
@@ -47,9 +46,9 @@ func main() {
 
 		switch r.Method {
 		case "GET":
-			Handlers.GetUserById(w, id, Db)
+			Handlers.GetUserById(w, r, id, Db)
 		case "DELETE":
-			Handlers.DeleteUser(w, id, Db)
+			Handlers.DeleteUser(w, r, id, Db)
 		case "PUT":
 			Handlers.UpdateUser(w, r, Db, id)
 		default:

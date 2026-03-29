@@ -9,12 +9,6 @@ Step-by-Step Plan to Build a REST API in Go
 - Define status codes
 - Optionally create OpenAPI/Swagger specification
 
-4. Create the HTTP Server
-- configure port
-- initialize router
-- register routes
-- start server
-
 5. Implement Routing
 GET /expenses 
 GET /expenses/{id} 

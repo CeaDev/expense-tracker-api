@@ -27,6 +27,14 @@ type TokenResponse struct {
 	TokenType   string `json:"tokenType"`
 }
 
+// This struct is for when we want to send a successful message along with the 200 status code
+// I want to include this message as a response from endpoints that don't return any json data.
+// Reason: It seems a little vague to send the 200 status code with no explanation/message
+type SuccessMessage struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
 // Function for verifying the token sent in a request header
 // It will return the Token claims
 func VerifyJWTToken(tokenstring string) jwt.MapClaims {
@@ -62,7 +70,7 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	query := "SELECT user_id, role FROM users WHERE (email = '" + jsonCredentials.Email + "' AND password = '" + jsonCredentials.Password + "');"
 	rows, err := db.Query(query)
 	if err != nil {
-		http.Error(w, "Error while Querying Database for user name", http.StatusInternalServerError)
+		http.Error(w, "Error while trying to log in", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -92,7 +100,7 @@ func PostLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		claims := token.Claims.(jwt.MapClaims)
 		current_time := time.Now()
 		claims["iss"] = current_time.Unix()
-		claims["exp"] = current_time.Add(1 * time.Minute).Unix()
+		claims["exp"] = current_time.Add(6 * time.Minute).Unix()
 		claims["authorized"] = true
 		claims["id"] = id
 		claims["role"] = role
@@ -162,18 +170,31 @@ func GetUsers(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 }
 
-// GET: gets the user with the specified ID
-func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
-	// Content type will be plain text in case of error. If we successfully execute the function, this will be
-	// set to application/json at the end of the function
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+// GET: gets user information of the user with the specified id
+// Restriction: A user role can only see their own information, not the information of others
+// An admin can see information for ALL users
+func GetUserById(w http.ResponseWriter, r *http.Request, id string, db *sql.DB) {
 	// Verify number sent is an int
-	_, err := strconv.Atoi(id)
+	convertedID, err := strconv.Atoi(id)
 	if err != nil {
 		http.Error(w, "The submitted ID is not an integer!", http.StatusInternalServerError)
 		return
 	}
-
+	// Get the token in request header
+	tokenString := r.Header.Get("Authorization")
+	// Validate token string
+	validatedTokenClaims := VerifyJWTToken(tokenString)
+	if validatedTokenClaims == nil {
+		http.Error(w, "Token could not be validated!", http.StatusUnauthorized)
+		return
+	}
+	// Verify that a user role can only view their own data. Admins can verify ALL user data
+	tokenClaimID := int64(validatedTokenClaims["id"].(float64))
+	tokenClaimRole := validatedTokenClaims["role"]
+	if tokenClaimID != int64(convertedID) && tokenClaimRole != "admin" {
+		http.Error(w, "Unauthorized user is making a request", http.StatusUnauthorized)
+		return
+	}
 	queryString := "SELECT * FROM users WHERE user_id = " + id
 	rows, err := db.Query(queryString)
 	if err != nil {
@@ -189,19 +210,22 @@ func GetUserById(w http.ResponseWriter, id string, db *sql.DB) {
 			return
 		}
 	} else {
-		http.Error(w, "User does not exist!", http.StatusInternalServerError)
+		http.Error(w, "User with that ID does not exist!", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
 	err = encoder.Encode(user)
 	if err != nil {
 		http.Error(w, "Error Encoding JSON", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 }
 
+// Endpoint for creating user
+// Request only needs to pass name, email, and password. createdAt and role fields are automatically set
 func PostUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	w.Header().Set("Content-Type", "application/json")
 	var user models.User
 	// Get JSON data from request
 	jsonData, err := io.ReadAll(r.Body)
@@ -221,14 +245,41 @@ func PostUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	_, err = db.Exec(query)
 	if err != nil {
 		http.Error(w, "User could not be added to DB", http.StatusInternalServerError)
+		return
+	} else {
+		responseMessage := SuccessMessage{
+			Status:  "Success",
+			Message: "User account was successfully created!",
+		}
+		err = json.NewEncoder(w).Encode(responseMessage)
+		if err != nil {
+			http.Error(w, "Error while creating response body", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
-func DeleteUser(w http.ResponseWriter, id string, db *sql.DB) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+// Endpoint for deleting user
+// Only an Admin can delete user accounts
+func DeleteUser(w http.ResponseWriter, r *http.Request, id string, db *sql.DB) {
+	w.Header().Set("Content-Type", "application/json")
+	// Verify that the ID is indeed a number
 	_, err := strconv.Atoi(id)
 	if err != nil {
 		http.Error(w, "ID is not a number", http.StatusInternalServerError)
+		return
+	}
+	// Get token string from request header
+	tokenstring := r.Header.Get("Authorization")
+	// Verify the token string
+	verifiedTokenClaim := VerifyJWTToken(tokenstring)
+	if verifiedTokenClaim == nil {
+		http.Error(w, "Token could not be verified", http.StatusUnauthorized)
+		return
+	}
+	// Check if user is  an admin
+	if verifiedTokenClaim["role"] != "admin" {
+		http.Error(w, "Unauthorized user is trying to modify user accounts", http.StatusUnauthorized)
 		return
 	}
 	query := "DELETE from users WHERE user_id = " + id
@@ -242,14 +293,43 @@ func DeleteUser(w http.ResponseWriter, id string, db *sql.DB) {
 		http.Error(w, "There is no user that has that ID!", http.StatusInternalServerError)
 		return
 	}
+	// Inform the user that the account was deleted with an HTTP response
+	successMesssage := SuccessMessage{
+		Status:  "Success",
+		Message: "User account was successfully deleted!",
+	}
+	err = json.NewEncoder(w).Encode(successMesssage)
+	if err != nil {
+		http.Error(w, "Error while trying to delete user account!", http.StatusInternalServerError)
+		return
+	}
 }
 
+// Endpoint for updating user data
+// Users can only modify their own user info.
 func UpdateUser(w http.ResponseWriter, r *http.Request, db *sql.DB, id string) {
-	_, err := strconv.Atoi(id)
+	w.Header().Set("Content-Type", "application/json")
+	// Verify the requested ID is a number
+	convertedId, err := strconv.Atoi(id)
 	if err != nil {
 		http.Error(w, "The ID is not an Integer!", http.StatusInternalServerError)
 		return
 	}
+	// Get token string from request header
+	tokenString := r.Header.Get("Authorization")
+	// Validate token string
+	verifiedTokenClaims := VerifyJWTToken(tokenString)
+	if verifiedTokenClaims == nil {
+		http.Error(w, "Token could not be authorized!", http.StatusUnauthorized)
+		return
+	}
+	// Verify that the user requesting the data is modifying their own, not other user data
+	tokenClaimsId := int(verifiedTokenClaims["id"].(float64))
+	if convertedId != tokenClaimsId {
+		http.Error(w, "Unauthorized user is making changes to user data!", http.StatusUnauthorized)
+		return
+	}
+
 	query := "SELECT * from users where user_id = " + id
 	rows, err := db.Query(query)
 	if err != nil {
@@ -267,7 +347,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request, db *sql.DB, id string) {
 		}
 		err = json.Unmarshal(jsonData, &user)
 		if err != nil {
-			http.Error(w, "Error unmarshalling JSON data into struct", http.StatusInternalServerError)
+			http.Error(w, "Error unmarshalling JSON data into struct. JSON request body format may be incorrect!", http.StatusInternalServerError)
 			return
 		}
 		update_query := "UPDATE users SET "
@@ -286,10 +366,19 @@ func UpdateUser(w http.ResponseWriter, r *http.Request, db *sql.DB, id string) {
 		// check for trailing comma
 		update_query = strings.TrimSuffix(update_query, ",")
 		update_query += " WHERE user_id = " + id
-		fmt.Println(update_query)
 		_, err = db.Exec(update_query)
 		if err != nil {
-			http.Error(w, "ERROR trying to execute UPDATE Query on Database!", http.StatusInternalServerError)
+			http.Error(w, "Invalid data provided", http.StatusInternalServerError)
+			return
+		}
+		// User data was succesfully modified, inform user
+		successMessage := SuccessMessage{
+			Status:  "Success",
+			Message: "User data was successfully modified!",
+		}
+		err = json.NewEncoder(w).Encode(successMessage)
+		if err != nil {
+			http.Error(w, "User data could not be modified!", http.StatusInternalServerError)
 		}
 
 	} else {
