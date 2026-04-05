@@ -22,7 +22,6 @@ Handler → Service → Repository
 10. Middleware
 Examples:
 - logging
-- authentication (JWT)
 - request ID
 - rate limiting
 - CORS
