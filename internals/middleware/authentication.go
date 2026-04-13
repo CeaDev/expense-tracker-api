@@ -36,7 +36,7 @@ func AuthenticationMiddleware(next http.Handler) http.Handler {
 		const contextKey contextKeyType = "key"
 		// Put token claims inside the
 		ctx := context.WithValue(r.Context(), contextKey, token.Claims.(jwt.MapClaims))
-		r.WithContext(ctx)
+		r = r.WithContext(ctx)
 		// Call next handler
 		next.ServeHTTP(w, r)
 	})
